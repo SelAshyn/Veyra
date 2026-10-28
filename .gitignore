@@ -1,43 +1,102 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Expo
+# Expo & React Native
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
+.eas/
 
-# Native
+# Native builds (generated)
+/ios
+/android
 .kotlin/
+build/
+.gradle/
 *.orig.*
+
+# Certificates & Keys (DO NOT COMMIT)
 *.jks
 *.p8
 *.p12
 *.key
+*.keystore
 *.mobileprovision
+*.pem
 
 # Metro
 .metro-health-check*
 
-# debug
+# Debugging & Logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+lerna-debug.log*
+*.log
+logs/
 
 # macOS
 .DS_Store
-*.pem
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
 
-# local env files
+# Windows
+Thumbs.db
+.env.local.vscode
+*.bak
+
+# Linux
+.directory
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+*.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Environment variables (local)
+.env
 .env*.local
+.env.*.local
 
-# typescript
+# TypeScript
 *.tsbuildinfo
+.tsbuildinfo
 
+# Testing
+coverage/
+.nyc_output/
+jest-coverage/
+.jest-cache/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Examples (if separate)
 example
+examples/
 
-# generated native folders
-/ios
-/android
+# OS temp files
+*.tmp
+*.temp
+.cache/

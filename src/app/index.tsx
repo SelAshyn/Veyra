@@ -1,98 +1,212 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import FeatureCard from "@/components/FeatureCard";
+import {
+  Inter_500Medium,
+  Inter_600SemiBold,
+  useFonts,
+} from "@expo-google-fonts/inter";
+import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import Button from "@/components/Button";
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+const COLORS = {
+  background: "#111513",
+  surface: "#1A211E",
+  surfaceLight: "#232C28",
+  border: "#2B3732",
+  text: "#F3F7F4",
+  muted: "#9AA8A0",
+  teal: "#35BDB3",
+  green: "#315F4A",
+};
+
+export default function Index() {
+  const router = useRouter();
+
+  const [fontsLoaded] = useFonts({
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.background}
+      />
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          {/* Same icon and colors as the Chat screen */}
+          <View style={styles.logo}>
+            <Feather
+              name="activity"
+              size={30}
+              color={COLORS.teal}
+            />
+          </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+          <View style={styles.heading}>
+            <Text style={styles.title}>Veyra</Text>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+            <Text style={styles.subtitle}>
+              Health, made clearer.
+            </Text>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+            <Text style={styles.description}>
+              Understand your health reports with AI-powered
+              insights explained in simple language.
+            </Text>
+          </View>
+
+          <View style={styles.featureCard}>
+            <FeatureCard />
+          </View>
+
+          <View style={styles.actions}>
+            <Button
+              title="Get Started"
+              onPress={() => router.push("/login")}
+            />
+
+            <Text style={styles.loginHint}>
+              Already have an account?{" "}
+              <Text
+                style={styles.loginLink}
+                onPress={() => router.push("/login")}
+              >
+                Log in
+              </Text>
+            </Text>
+          </View>
+
+          <View style={styles.trustNote}>
+            <Feather
+              name="shield"
+              size={14}
+              color={COLORS.muted}
+            />
+            <Text style={styles.trustText}>
+              Your health information deserves care.
+            </Text>
+          </View>
+
+          <Text style={styles.disclaimer}>
+            For informational purposes only. Not a medical diagnosis.
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    backgroundColor: COLORS.background,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  scrollContent: {
+    flexGrow: 1,
+  },
+  container: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 35,
+    paddingBottom: 28,
+  },
+  logo: {
+    width: 68,
+    height: 68,
+    borderRadius: 23,
+    backgroundColor: "#203A32",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  heading: {
+    alignItems: "center",
+    width: "100%",
   },
   title: {
-    textAlign: 'center',
+    color: COLORS.text,
+    fontSize: 42,
+    textAlign: "center",
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: -1.2,
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    color: COLORS.teal,
+    fontSize: 19,
+    marginTop: 5,
+    textAlign: "center",
+    fontFamily: "Inter_500Medium",
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  description: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 18,
+    maxWidth: 310,
+    textAlign: "center",
+    fontFamily: "Inter_500Medium",
+  },
+  featureCard: {
+    width: "100%",
+    maxWidth: 340,
+    marginTop: 32,
+    alignSelf: "center",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actions: {
+    width: "100%",
+    maxWidth: 320,
+    marginTop: 32,
+  },
+  loginHint: {
+    color: COLORS.muted,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 20,
+    fontFamily: "Inter_500Medium",
+  },
+  loginLink: {
+    color: COLORS.teal,
+    fontFamily: "Inter_600SemiBold",
+  },
+  trustNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginTop: 30,
+  },
+  trustText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+  disclaimer: {
+    color: "#718078",
+    fontSize: 10,
+    textAlign: "center",
+    marginTop: 12,
+    fontFamily: "Inter_500Medium",
   },
 });

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Teal background circle -->
+  <rect width="32" height="32" rx="8" fill="#14b8a6"/>
+  <!-- ECG/heartbeat line icon (white) -->
+  <polyline
+    points="2,16 7,16 10,8 14,24 18,12 21,16 26,16 30,16"
+    stroke="white"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>

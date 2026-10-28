@@ -1,18 +1,103 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  View,
+} from "react-native";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { onAuthStateChanged } from "firebase/auth";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { auth } from "@/lib/firebase";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+const BACKGROUND = "#111513";
 
-SplashScreen.preventAutoHideAsync();
+export default function RootLayout() {
+  const router = useRouter();
+  const segments = useSegments();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Restore the user's Firebase session.
+  useEffect(() => {
+    if (!auth) {
+      setIsLoggedIn(false);
+      setIsAuthReady(true);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user);
+      setIsAuthReady(true);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Protect authenticated routes while keeping the welcome screen public.
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const firstSegment = segments[0];
+
+    const isAuthScreen =
+      firstSegment === "login" ||
+      firstSegment === "signup" ||
+      firstSegment === "forgot-password";
+
+    const isWelcomeScreen =
+      firstSegment === undefined;
+
+    if (!isLoggedIn && !isAuthScreen && !isWelcomeScreen) {
+      // Logged-out users can access the welcome page.
+      router.replace("/");
+    } else if (isLoggedIn && (isAuthScreen || isWelcomeScreen)) {
+      // Returning users with a valid session go straight to the app.
+      router.replace("/(tabs)");
+    }
+  }, [isAuthReady, isLoggedIn, segments, router]);
+
+  if (!isAuthReady) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.loadingScreen}>
+          <StatusBar
+            style="light"
+            backgroundColor={BACKGROUND}
+          />
+          <ActivityIndicator
+            size="large"
+            color="#35BDB3"
+          />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <StatusBar
+        style="light"
+        backgroundColor={BACKGROUND}
+      />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: BACKGROUND,
+          },
+        }}
+      />
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: BACKGROUND,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
