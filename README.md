@@ -1,56 +1,199 @@
-# Welcome to your Expo app 👋
+# Veyra 🏥
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Health, made clearer.**
 
-## Get started
+Veyra is an AI-powered health insights application that helps users understand their medical reports in simple, accessible language. Upload your blood tests and health reports, and get intelligent explanations of your results, measurements, and what they mean for your health.
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- 📄 **Report Upload & Analysis** - Upload health reports and blood test results through an intuitive chat interface
+- 📊 **Health Dashboard** - View your biomarkers, glucose trends, and key measurements in one place
+- 🤖 **AI-Powered Insights** - Get plain-language explanations of complex medical terms and results
+- 📈 **Trend Tracking** - Track measurements over time with visual charts
+- 🔒 **Privacy First** - Your health information is secure and never stored without consent
+- 🎨 **Clean UI** - Dark mode design optimized for readability and accessibility
+- 📱 **Cross-Platform** - Works on iOS, Android, and Web (via Expo)
 
-2. Start the app
+## Tech Stack
 
-   ```bash
-   npx expo start
-   ```
+- **Framework**: [Expo](https://expo.dev) with [React Native](https://reactnative.dev)
+- **Routing**: [Expo Router](https://docs.expo.dev/router/introduction) (file-based routing)
+- **Authentication**: Firebase Auth with persistent sessions
+- **Database**: Firebase
+- **UI Components**: React Native with custom styling
+- **Icons**: [@expo/vector-icons](https://icons.expo.fyi) (Feather)
+- **Fonts**: Inter (via @expo-google-fonts)
+- **Language**: TypeScript
+- **Linting**: ESLint
 
-In the output, you'll find options to open the app in a
+## Prerequisites
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Node.js 18+
+- npm, yarn, or pnpm
+- Expo CLI (installed via npm)
+- Firebase project configuration (see `.env.example`)
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Getting Started
 
-## Get a fresh project
-
-When you're ready, run:
+### 1. Clone & Install
 
 ```bash
-npm run reset-project
+git clone <repo-url>
+cd veyra
+npm install
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+### 2. Configure Environment Variables
 
-### Other setup steps
+Copy `.env.example` to `.env` and fill in your Firebase credentials:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+```
 
-## Learn more
+Required variables:
+```
+EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Start Development
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm start
+```
 
-## Join the community
+The output will display options to run on:
+- **Android Emulator**: Press `a`
+- **iOS Simulator**: Press `i` (macOS only)
+- **Web**: Press `w`
+- **Expo Go App**: Scan the QR code with the Expo Go mobile app
 
-Join our community of developers creating universal apps.
+## Project Structure
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+├── app/                          # App screens (file-based routing)
+│   ├── (tabs)/                   # Tabbed interface
+│   │   ├── index.tsx             # Home/Chat screen
+│   │   ├── analysis.tsx          # Health analysis & report breakdown
+│   │   ├── history.tsx           # Report history
+│   │   ├── profile.tsx           # User profile & settings
+│   │   └── _layout.tsx           # Tab navigation layout
+│   ├── login/
+│   │   └── index.tsx             # Login screen
+│   ├── signup/
+│   │   └── index.tsx             # Sign up screen
+│   ├── forgot-password.tsx       # Password recovery
+│   ├── index.tsx                 # Welcome/landing screen
+│   └── _layout.tsx               # Root layout
+├── components/                   # Reusable components
+│   ├── Button.tsx                # Custom button component
+│   └── FeatureCard.tsx           # Feature showcase card
+└── lib/                          # Utilities & configuration
+    ├── firebase.ts               # Firebase initialization
+    └── auth.ts                   # Authentication helpers
+```
+
+## Available Scripts
+
+```bash
+npm start          # Start Expo dev server
+npm run android    # Start Android emulator
+npm run ios        # Start iOS simulator (macOS)
+npm run web        # Start web version
+npm run lint       # Run ESLint
+npm run reset-project  # Reset to blank project
+```
+
+## Key Screens
+
+### 🏠 Home Screen (Chat)
+Upload and analyze health reports. Chat with AI to get explanations of your health data.
+
+### 📊 Analysis Screen
+Detailed breakdown of biomarkers, measurements, and trends from uploaded reports. Displays:
+- Blood glucose trends
+- Cholesterol and hemoglobin levels
+- Vitamin measurements
+- Out-of-range values
+- Plain-language explanations
+
+### 📜 History Screen
+View previous reports and analyses.
+
+### 👤 Profile Screen
+Manage user account and health information.
+
+## Authentication
+
+Uses Firebase Authentication with persistent sessions:
+- Email/password signup and login
+- Password reset flow
+- Session persisted to AsyncStorage
+- Secure credential handling
+
+## Important Notes
+
+- **Medical Disclaimer**: This app is for informational purposes only and not a substitute for professional medical advice. Always consult a healthcare professional.
+- **Privacy**: Health data is sensitive. Ensure proper HIPAA/GDPR compliance and secure data handling practices.
+- **Report Data**: The analysis screen shows placeholder states until actual report data is available. Never populate with invented patient results.
+
+## Development Tips
+
+- **Hot Reload**: Edit files in `src/app` and `src/components` for fast refresh
+- **TypeScript**: Strict typing is enabled; check types with your editor
+- **Styling**: Uses React Native StyleSheet for cross-platform consistency
+- **Icons**: Browse available icons at [icons.expo.fyi](https://icons.expo.fyi)
+
+## Testing & Debugging
+
+- Use Expo DevTools in development (accessible via QR code in terminal)
+- Run ESLint to catch code issues: `npm run lint`
+- Test on real devices by building with Expo Go or EAS Build
+
+## Deployment
+
+### Web
+```bash
+npm run web
+```
+
+### Mobile (via EAS Build)
+```bash
+npm install -g eas-cli
+eas build --platform ios  # or android
+```
+
+See [Expo Deployment Guide](https://docs.expo.dev/deploy/build-project/) for details.
+
+## Contributing
+
+1. Create a feature branch: `git checkout -b feature/your-feature`
+2. Make your changes and test thoroughly
+3. Run linting: `npm run lint`
+4. Commit with clear messages
+5. Push and create a pull request
+
+## License
+
+See LICENSE file for details.
+
+## Resources
+
+- [Expo Documentation](https://docs.expo.dev)
+- [React Native Docs](https://reactnative.dev)
+- [Firebase Docs](https://firebase.google.com/docs)
+- [Expo Router Guide](https://docs.expo.dev/router/introduction)
+
+## Support
+
+For issues, questions, or contributions, please open an issue or contact the development team.
+
+---
+
+**Stay healthy, stay informed.** 💚
