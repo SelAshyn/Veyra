@@ -72,10 +72,19 @@ Thumbs.db
 .settings/
 *.sublime-workspace
 
-# Environment variables (local)
+# Environment variables (local) - NEVER commit these files
 .env
-.env*.local
+.env.local
 .env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+veyra-backend/.env
+veyra-backend/.env.local
+veyra-backend/.env.*.local
+veyra-python/.env
+veyra-python/.env.local
+veyra-python/.env.*.local
 
 # TypeScript
 *.tsbuildinfo
@@ -100,3 +109,16 @@ examples/
 *.tmp
 *.temp
 .cache/
+
+# Python (veyra-python)
+veyra-python/.venv/
+veyra-python/.venv313/
+veyra-python/__pycache__/
+veyra-python/*.pyc
+veyra-python/*.pyo
+veyra-python/*.egg-info/
+veyra-python/dist/
+veyra-python/build/
+veyra-python/.pytest_cache/
+veyra-python/.mypy_cache/
+veyra-python/.coverage

@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  View,
-} from "react-native";
-import { Stack, useRouter, useSegments } from "expo-router";
-import { onAuthStateChanged } from "firebase/auth";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import { auth } from "@/lib/firebase";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { onAuthStateChanged } from "firebase/auth";
+import { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    StyleSheet,
+    View,
+} from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const BACKGROUND = "#111513";
 
@@ -88,7 +88,19 @@ export default function RootLayout() {
             backgroundColor: BACKGROUND,
           },
         }}
-      />
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="signup" />
+        <Stack.Screen name="forgot-password" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="history"
+          options={{
+            presentation: "modal",
+          }}
+        />
+      </Stack>
     </SafeAreaProvider>
   );
 }

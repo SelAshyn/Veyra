@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,9 +11,12 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { logout } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
+import { clearAllAnalyses } from "@/lib/analysis";
+import { clearAllChats } from "@/lib/history";
 
 const C = {
   bg: "#111513",
@@ -29,7 +31,14 @@ const C = {
 
 export default function ProfileScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const user = auth?.currentUser;
+  const [user, setUser] = useState<User | null>(auth?.currentUser ?? null);
+
+  // Keeps the name and email correct even if Firebase restores the session late
+  useEffect(() => {
+    if (!auth) return undefined;
+    return onAuthStateChanged(auth, setUser);
+  }, []);
+
   const name = user?.displayName?.trim() || "Health Insight user";
   const email = user?.email || "No email available";
 
@@ -42,7 +51,6 @@ export default function ProfileScreen() {
       router.replace("/login");
     } catch {
       Alert.alert("Could not log out", "Please try again.");
-    } finally {
       setIsLoggingOut(false);
     }
   }
@@ -56,6 +64,28 @@ export default function ProfileScreen() {
         onPress: () => void handleLogout(),
       },
     ]);
+  }
+
+  function confirmDeleteData() {
+    Alert.alert(
+      "Delete saved health data?",
+      "All chat history and report analyses stored on this phone for your account will be removed. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await Promise.all([clearAllAnalyses(), clearAllChats()]);
+              Alert.alert("Done", "Your saved health data was deleted.");
+            } catch {
+              Alert.alert("Could not delete data", "Please try again.");
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -95,21 +125,33 @@ export default function ProfileScreen() {
             icon="bar-chart-2"
             title="Health analysis"
             subtitle="Review measurements and report explanations"
-            onPress={() => router.push("/(tabs)/analysis")}
+            onPress={() => router.navigate("/(tabs)/analysis")}
           />
           <View style={styles.separator} />
           <MenuRow
             icon="clock"
             title="Chat history"
             subtitle="Revisit saved conversations"
-            onPress={() => router.push("/(tabs)/history")}
+            onPress={() => router.navigate("/history")}
           />
           <View style={styles.separator} />
           <MenuRow
             icon="message-circle"
             title="Chat with Health Insight"
             subtitle="Ask a question or upload a report"
-            onPress={() => router.replace("/(tabs)")}
+            onPress={() => router.navigate("/(tabs)")}
+          />
+        </View>
+
+        <Text style={styles.sectionTitle}>Your data</Text>
+
+        <View style={styles.menuCard}>
+          <MenuRow
+            icon="trash-2"
+            title="Delete saved health data"
+            subtitle="Removes chats and report analyses stored on this phone"
+            onPress={confirmDeleteData}
+            danger
           />
         </View>
 
@@ -154,20 +196,24 @@ function MenuRow({
   title,
   subtitle,
   onPress,
+  danger = false,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   title: string;
   subtitle: string;
   onPress: () => void;
+  danger?: boolean;
 }) {
   return (
     <TouchableOpacity style={styles.menuRow} onPress={onPress}>
-      <View style={styles.menuIcon}>
-        <Feather name={icon} size={17} color={C.teal} />
+      <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
+        <Feather name={icon} size={17} color={danger ? C.red : C.teal} />
       </View>
 
       <View style={styles.menuContent}>
-        <Text style={styles.menuTitle}>{title}</Text>
+        <Text style={[styles.menuTitle, danger && { color: C.red }]}>
+          {title}
+        </Text>
         <Text style={styles.menuSubtitle}>{subtitle}</Text>
       </View>
 
@@ -266,6 +312,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  menuIconDanger: { backgroundColor: "#3A2323" },
   menuContent: { flex: 1 },
   menuTitle: { color: C.text, fontSize: 12, fontWeight: "700" },
   menuSubtitle: {

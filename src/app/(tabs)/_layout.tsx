@@ -1,8 +1,8 @@
 
-import React from "react";
-import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C = {
@@ -86,14 +86,7 @@ export default function TabLayout() {
             ),
           }}
         />
-
-        <Tabs.Screen
-          name="history"
-          options={{
-            href: null,
-            headerShown: false,
-          }}
-        />
+        
       </Tabs>
     </>
   );

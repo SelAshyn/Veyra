@@ -1,6 +1,6 @@
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -13,9 +13,10 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import Markdown from "react-native-markdown-display";
 import {
   AudioModule,
   RecordingPresets,
@@ -23,6 +24,13 @@ import {
   useAudioRecorder,
 } from "expo-audio";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { sendChatMessage } from "@/lib/api";
+import { analyzeAndSave } from "@/lib/analysis";
+import { buildChat, loadChat, saveChat } from "@/lib/history";
+import {
+  extractDocumentText,
+  transcribeAudio,
+} from "@/lib/processing";
 
 const COLORS = {
   background: "#111513",
@@ -35,11 +43,58 @@ const COLORS = {
   green: "#315F4A",
 };
 
+// Removes stray HTML (like <br>) that the model sometimes adds
+function cleanReply(text: string) {
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&nbsp;/g, " ")
+    .replace(/<\/?[^>]+>/g, "")
+    .trim();
+}
+
+const markdownStyles = {
+  body: { color: COLORS.text, fontSize: 14, lineHeight: 21 },
+  paragraph: { marginTop: 0, marginBottom: 8 },
+  strong: { fontWeight: "700" as const, color: COLORS.text },
+  em: { fontStyle: "italic" as const },
+  heading1: {
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: "700" as const,
+    marginBottom: 6,
+  },
+  heading2: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "700" as const,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  heading3: {
+    color: COLORS.teal,
+    fontSize: 14,
+    fontWeight: "700" as const,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  bullet_list: { marginBottom: 6 },
+  ordered_list: { marginBottom: 6 },
+  list_item: { marginBottom: 4 },
+  hr: { backgroundColor: COLORS.border, height: 1, marginVertical: 8 },
+  code_inline: {
+    backgroundColor: COLORS.surfaceLight,
+    color: COLORS.text,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+};
+
 type Attachment = {
   id: string;
   name: string;
   uri: string;
   type: "pdf" | "image" | "audio";
+  mimeType?: string;
 };
 
 type ChatMessage = {
@@ -52,17 +107,50 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
+  // The history page opens a chat (or a fresh one) by sending a new "t" value
+  const params = useLocalSearchParams<{ chatId?: string; t?: string }>();
+
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatId, setChatId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  function startNewChat() {
+    if (isSending) return;
+    setMessages([]);
+    setChatId(null);
+    setMessage("");
+    setAttachments([]);
+  }
+
+  useEffect(() => {
+    if (!params.t) return;
+    let active = true;
+
+    if (params.chatId) {
+      loadChat(params.chatId).then((chat) => {
+        if (!active || !chat) return;
+        setMessages(chat.messages);
+        setChatId(chat.id);
+      });
+    } else {
+      startNewChat();
+    }
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.t]);
 
   async function pickPDF() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
-        copyToCacheDirectory: true,
+        copyToCacheDirectory: true, // gives a readable cache copy
         multiple: false,
       });
 
@@ -73,14 +161,20 @@ export default function ChatScreen() {
       setAttachments((current) => [
         ...current,
         {
-          id: `${Date.now()}`,
+          id: `${Date.now()}-${Math.random()}`,
           name: file.name,
-          uri: file.uri,
+          uri: file.uri, // already a readable cache copy
           type: "pdf",
+          mimeType: file.mimeType ?? "application/pdf",
         },
       ]);
-    } catch {
-      Alert.alert("Could not attach PDF", "Please try selecting the file again.");
+    } catch (error) {
+      Alert.alert(
+        "Could not attach PDF",
+        error instanceof Error
+          ? error.message
+          : "Please try selecting the file again."
+      );
     }
   }
 
@@ -92,7 +186,7 @@ export default function ChatScreen() {
       if (!permission.granted) {
         Alert.alert(
           "Photo permission needed",
-          "Allow photo-library access to attach a health-related image."
+          "Allow photo-library access to attach an image."
         );
         return;
       }
@@ -106,18 +200,23 @@ export default function ChatScreen() {
       if (result.canceled) return;
 
       const image = result.assets[0];
+      const imageName = image.fileName ?? "health-image.jpg";
 
       setAttachments((current) => [
         ...current,
         {
-          id: `${Date.now()}`,
-          name: image.fileName ?? "Health image",
+          id: `${Date.now()}-${Math.random()}`,
+          name: imageName,
           uri: image.uri,
           type: "image",
+          mimeType: image.mimeType ?? "image/jpeg",
         },
       ]);
-    } catch {
-      Alert.alert("Could not attach image", "Please try again.");
+    } catch (error) {
+      Alert.alert(
+        "Could not attach image",
+        error instanceof Error ? error.message : "Please try again."
+      );
     }
   }
 
@@ -130,30 +229,84 @@ export default function ChatScreen() {
   }
 
   async function toggleRecording() {
+    if (isTranscribing || isSending) return;
+
     try {
       if (isRecording) {
         await recorder.stop();
         setIsRecording(false);
 
-        if (recorder.uri) {
-          setAttachments((current) => [
-            ...current,
-            {
-              id: `${Date.now()}`,
-              name: "Voice recording",
-              uri: recorder.uri!,
-              type: "audio",
-            },
-          ]);
+        const audioUri = recorder.uri;
+
+        if (!audioUri) {
           Alert.alert(
-            "Recording saved",
-            "The audio is attached locally. Speech transcription is not connected yet."
+            "Recording unavailable",
+            "The audio file could not be found. Please try again."
           );
+          return;
         }
+
+        const audioName =
+          audioUri.split("/").pop() || "voice-note.m4a";
+        const extension = audioName.split(".").pop()?.toLowerCase();
+
+        const mimeTypes: Record<string, string> = {
+          wav: "audio/wav",
+          mp3: "audio/mpeg",
+          m4a: "audio/mp4",
+          aac: "audio/aac",
+          ogg: "audio/ogg",
+          webm: "audio/webm",
+          mp4: "audio/mp4",
+          flac: "audio/flac",
+        };
+
+        setIsTranscribing(true);
+
+        try {
+          const result = await transcribeAudio({
+            uri: audioUri,
+            name: audioName,
+            mimeType: mimeTypes[extension ?? ""] ?? "audio/mp4",
+            type: "audio",
+          });
+
+          const transcript = result.text.trim();
+
+          if (!transcript) {
+            Alert.alert(
+              "No speech detected",
+              "Try recording again in a quieter environment."
+            );
+            return;
+          }
+
+          setMessage((current) =>
+            current.trim()
+              ? `${current.trim()} ${transcript}`
+              : transcript
+          );
+
+          Alert.alert(
+            "Transcription complete",
+            `Language: ${result.language ?? "Unknown"}\n\nThe transcript is in your message box. Review it before sending.`
+          );
+        } catch (error) {
+          Alert.alert(
+            "Transcription failed",
+            error instanceof Error
+              ? error.message
+              : "Could not transcribe the recording."
+          );
+        } finally {
+          setIsTranscribing(false);
+        }
+
         return;
       }
 
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      const permission =
+        await AudioModule.requestRecordingPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert(
@@ -171,70 +324,182 @@ export default function ChatScreen() {
       await recorder.prepareToRecordAsync();
       recorder.record();
       setIsRecording(true);
-    } catch {
+    } catch (error) {
       setIsRecording(false);
+      setIsTranscribing(false);
+
       Alert.alert(
         "Voice recording unavailable",
-        "Please check microphone permissions and try again."
+        error instanceof Error
+          ? error.message
+          : "Check microphone permissions and try again."
       );
     }
   }
 
-  function sendMessage() {
-    const trimmed = message.trim();
+  async function sendMessage() {
+    const question = message.trim();
 
-    if (!trimmed && attachments.length === 0) return;
+    if ((!question && attachments.length === 0) || isSending) return;
 
-    const newMessage: ChatMessage = {
-      id: `${Date.now()}`,
-      text:
-        trimmed ||
-        `Attached ${attachments.length} file${attachments.length === 1 ? "" : "s"}.`,
-      sender: "user",
-    };
-
-    setMessages((current) => [...current, newMessage]);
-    setMessage("");
-    setAttachments([]);
     setIsSending(true);
 
-    // Connect your AI/backend endpoint here to analyse the message and files.
-    setTimeout(() => {
-      setIsSending(false);
+    try {
+      let documentContext = "";
+      const extractedReports: { name: string; text: string }[] = [];
+
+      for (const file of attachments) {
+        if (file.type === "audio") {
+          throw new Error(
+            "Please transcribe the audio before sending your message."
+          );
+        }
+
+        const result = await extractDocumentText({
+          uri: file.uri,
+          name: file.name,
+          mimeType: file.mimeType,
+          type: file.type,
+        });
+
+        if (!result.text.trim()) {
+          throw new Error(
+            result.message ||
+              `No readable text was found in ${file.name}.`
+          );
+        }
+
+        // Kept for the Analysis tab (analysed in the background after the reply)
+        extractedReports.push({ name: file.name, text: result.text });
+
+        const remaining = Math.max(
+          0,
+          10000 - documentContext.length
+        );
+
+        if (remaining > 0) {
+          documentContext +=
+            `\n\nDocument: ${file.name}\n` +
+            result.text.slice(0, remaining);
+        }
+      }
+
+      const userQuestion =
+        question || "Please explain the attached document.";
+
+      const prompt = documentContext
+        ? `${userQuestion}\n\n--- REPORT TEXT (extracted automatically, may contain scan errors) ---${documentContext}\n--- END OF REPORT ---\n\nCheck every test in this report. List all HIGH and LOW results with what they mean and how to improve them, then the normal ones in one line. Skip patient and lab details.`
+        : userQuestion;
+
+      if (prompt.length > 14000) {
+        throw new Error(
+          "The message is too long for the backend. Shorten your question or attach fewer documents."
+        );
+      }
+
+      const history = messages.map((item) => ({
+        role: item.sender,
+        content: item.text,
+      }));
+
+      const reply = await sendChatMessage(prompt, history);
+
+      const attachmentNames = attachments
+        .map((file) => file.name)
+        .join(", ");
+
+      const userDisplay = attachments.length
+        ? `${userQuestion}\n\nAttachments: ${attachmentNames}`
+        : userQuestion;
+
+      const timestamp = Date.now();
+
+      const next: ChatMessage[] = [
+        ...messages,
+        { id: `${timestamp}-user`, text: userDisplay, sender: "user" },
+        { id: `${timestamp}-assistant`, text: reply, sender: "assistant" },
+      ];
+
+      setMessages(next);
+
+      // Save this conversation to the History tab
+      const id = chatId ?? String(timestamp);
+      setChatId(id);
+      void saveChat(buildChat(id, next));
+
+      setMessage("");
+      setAttachments([]);
+
+      // Save structured results to the Analysis tab (never blocks or breaks the chat)
+      if (extractedReports.length > 0) {
+        void (async () => {
+          for (const report of extractedReports) {
+            await analyzeAndSave(report.name, report.text);
+          }
+        })();
+      }
+    } catch (error) {
       Alert.alert(
-        "AI not connected yet",
-        "Your message was added to this screen, but it has not been sent to an AI service. Connect your backend to enable health analysis."
+        "Could not send message",
+        error instanceof Error
+          ? error.message
+          : "Check that both backend servers are running and try again."
       );
-    }, 250);
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar
+        barStyle="light-content"
+      />
 
       <KeyboardAvoidingView
         style={styles.keyboardArea}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={0}
       >
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: Math.max(insets.top, 12) },
+          ]}
+        >
           <View style={styles.brandRow}>
             <View style={styles.logo}>
-              <Feather name="activity" size={22} color={COLORS.teal} />
+              <Feather
+                name="activity"
+                size={22}
+                color={COLORS.teal}
+              />
             </View>
             <View>
               <Text style={styles.brandTitle}>Health Insight</Text>
-              <Text style={styles.brandSubtitle}>YOUR HEALTH COMPANION</Text>
+              <Text style={styles.brandSubtitle}>
+                YOUR HEALTH COMPANION
+              </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push("/(tabs)/history")}
-            accessibilityLabel="Open chat history"
-          >
-            <Feather name="clock" size={20} color={COLORS.text} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={startNewChat}
+              accessibilityLabel="Start a new chat"
+            >
+              <Feather name="plus" size={20} color={COLORS.text} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => router.push("/(tabs)/history")}
+              accessibilityLabel="Open chat history"
+            >
+              <Feather name="clock" size={20} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -245,11 +510,19 @@ export default function ChatScreen() {
           {messages.length === 0 ? (
             <View style={styles.welcome}>
               <View style={styles.heroLogo}>
-                <Feather name="activity" size={42} color={COLORS.teal} />
+                <Feather
+                  name="activity"
+                  size={42}
+                  color={COLORS.teal}
+                />
               </View>
-              <Text style={styles.welcomeTitle}>Your health, understood.</Text>
+
+              <Text style={styles.welcomeTitle}>
+                Your health, understood.
+              </Text>
               <Text style={styles.welcomeText}>
-                Ask a question or attach a health report or image to get started.
+                Ask a question or attach a health report or image to get
+                started.
               </Text>
 
               <View style={styles.suggestionList}>
@@ -259,11 +532,19 @@ export default function ChatScreen() {
                     setMessage("Help me understand my health report.")
                   }
                 >
-                  <Feather name="file-text" size={18} color={COLORS.teal} />
+                  <Feather
+                    name="file-text"
+                    size={18}
+                    color={COLORS.teal}
+                  />
                   <Text style={styles.suggestionText}>
                     Help me understand a report
                   </Text>
-                  <Feather name="arrow-up-left" size={16} color={COLORS.muted} />
+                  <Feather
+                    name="arrow-up-left"
+                    size={16}
+                    color={COLORS.muted}
+                  />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -272,11 +553,19 @@ export default function ChatScreen() {
                     setMessage("What questions should I ask my doctor?")
                   }
                 >
-                  <Feather name="message-circle" size={18} color={COLORS.teal} />
+                  <Feather
+                    name="message-circle"
+                    size={18}
+                    color={COLORS.teal}
+                  />
                   <Text style={styles.suggestionText}>
                     Prepare questions for my doctor
                   </Text>
-                  <Feather name="arrow-up-left" size={16} color={COLORS.muted} />
+                  <Feather
+                    name="arrow-up-left"
+                    size={16}
+                    color={COLORS.muted}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -292,12 +581,33 @@ export default function ChatScreen() {
                       : styles.assistantBubble,
                   ]}
                 >
-                  <Text style={styles.messageText}>{item.text}</Text>
+                  {item.sender === "assistant" ? (
+                    <Markdown style={markdownStyles}>
+                      {cleanReply(item.text)}
+                    </Markdown>
+                  ) : (
+                    <Text style={styles.messageText}>{item.text}</Text>
+                  )}
                 </View>
               ))}
+
               {isSending && (
-                <Text style={styles.processingText}>Preparing message…</Text>
+                <View style={styles.statusRow}>
+                  <ActivityIndicator color={COLORS.teal} size="small" />
+                  <Text style={styles.processingText}>
+                    Reading attachments and asking Veyra…
+                  </Text>
+                </View>
               )}
+            </View>
+          )}
+
+          {messages.length === 0 && isSending && (
+            <View style={styles.statusRow}>
+              <ActivityIndicator color={COLORS.teal} size="small" />
+              <Text style={styles.processingText}>
+                Reading attachments and asking Veyra…
+              </Text>
             </View>
           )}
 
@@ -329,9 +639,11 @@ export default function ChatScreen() {
                   size={15}
                   color={COLORS.teal}
                 />
+
                 <Text style={styles.attachmentName} numberOfLines={1}>
                   {file.name}
                 </Text>
+
                 <TouchableOpacity
                   onPress={() =>
                     setAttachments((current) =>
@@ -339,6 +651,7 @@ export default function ChatScreen() {
                     )
                   }
                   accessibilityLabel={`Remove ${file.name}`}
+                  disabled={isSending}
                 >
                   <Feather name="x" size={15} color={COLORS.muted} />
                 </TouchableOpacity>
@@ -358,8 +671,13 @@ export default function ChatScreen() {
               style={styles.iconButton}
               onPress={showAttachmentOptions}
               accessibilityLabel="Attach PDF or image"
+              disabled={isSending || isTranscribing || isRecording}
             >
-              <Feather name="paperclip" size={21} color={COLORS.muted} />
+              <Feather
+                name="paperclip"
+                size={21}
+                color={COLORS.muted}
+              />
             </TouchableOpacity>
 
             <TextInput
@@ -371,6 +689,7 @@ export default function ChatScreen() {
               multiline
               maxLength={3000}
               returnKeyType="default"
+              editable={!isSending && !isTranscribing}
             />
 
             <TouchableOpacity
@@ -382,26 +701,49 @@ export default function ChatScreen() {
               accessibilityLabel={
                 isRecording ? "Stop voice recording" : "Record a voice note"
               }
+              disabled={isSending || isTranscribing}
             >
-              <Feather
-                name={isRecording ? "square" : "mic"}
-                size={19}
-                color={isRecording ? "#FF8A80" : COLORS.muted}
-              />
+              {isTranscribing ? (
+                <ActivityIndicator color={COLORS.teal} size="small" />
+              ) : (
+                <Feather
+                  name={isRecording ? "square" : "mic"}
+                  size={19}
+                  color={isRecording ? "#FF8A80" : COLORS.muted}
+                />
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.sendButton}
-              onPress={sendMessage}
+              style={[
+                styles.sendButton,
+                isSending && styles.sendButtonDisabled,
+              ]}
+              onPress={() => void sendMessage()}
               accessibilityLabel="Send message"
+              disabled={isSending || isTranscribing || isRecording}
             >
-              <Feather name="arrow-up" size={21} color="#10201C" />
+              {isSending ? (
+                <ActivityIndicator color="#10201C" size="small" />
+              ) : (
+                <Feather
+                  name="arrow-up"
+                  size={21}
+                  color="#10201C"
+                />
+              )}
             </TouchableOpacity>
           </View>
 
           {isRecording && (
             <Text style={styles.recordingLabel}>
               Recording voice note… tap the microphone button to stop.
+            </Text>
+          )}
+
+          {isTranscribing && (
+            <Text style={styles.recordingLabel}>
+              Transcribing your voice with AI…
             </Text>
           )}
         </View>
@@ -411,8 +753,13 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.background },
-  keyboardArea: { flex: 1 },
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  keyboardArea: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 15,
@@ -422,7 +769,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 11 },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
   logo: {
     width: 43,
     height: 43,
@@ -431,7 +786,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  brandTitle: { color: COLORS.text, fontSize: 17, fontWeight: "700" },
+  brandTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: "700",
+  },
   brandSubtitle: {
     color: COLORS.muted,
     fontSize: 9,
@@ -446,13 +805,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  conversation: { flex: 1 },
+  conversation: {
+    flex: 1,
+  },
   conversationContent: {
     flexGrow: 1,
     justifyContent: "center",
     padding: 22,
   },
-  welcome: { alignItems: "center", width: "100%" },
+  welcome: {
+    alignItems: "center",
+    width: "100%",
+  },
   heroLogo: {
     width: 92,
     height: 92,
@@ -479,7 +843,11 @@ const styles = StyleSheet.create({
     marginTop: 11,
     maxWidth: 300,
   },
-  suggestionList: { width: "100%", marginTop: 30, gap: 10 },
+  suggestionList: {
+    width: "100%",
+    marginTop: 30,
+    gap: 10,
+  },
   suggestion: {
     flexDirection: "row",
     alignItems: "center",
@@ -490,7 +858,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 16,
   },
-  suggestionText: { color: COLORS.text, fontSize: 13, flex: 1 },
+  suggestionText: {
+    color: COLORS.text,
+    fontSize: 13,
+    flex: 1,
+  },
   disclaimer: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -506,7 +878,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     flex: 1,
   },
-  messages: { gap: 12, paddingVertical: 12 },
+  messages: {
+    gap: 12,
+    paddingVertical: 12,
+  },
   messageBubble: {
     maxWidth: "88%",
     borderRadius: 18,
@@ -523,8 +898,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderBottomLeftRadius: 5,
   },
-  messageText: { color: COLORS.text, fontSize: 14, lineHeight: 21 },
-  processingText: { color: COLORS.muted, fontSize: 12 },
+  messageText: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  processingText: {
+    color: COLORS.muted,
+    fontSize: 12,
+  },
   attachmentList: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -542,7 +931,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
   },
-  attachmentName: { color: COLORS.text, fontSize: 11, maxWidth: 145 },
+  attachmentName: {
+    color: COLORS.text,
+    fontSize: 11,
+    maxWidth: 145,
+  },
   composerWrap: {
     paddingHorizontal: 12,
     paddingTop: 8,
@@ -566,7 +959,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  recordingButton: { backgroundColor: "#492C2C", borderRadius: 13 },
+  recordingButton: {
+    backgroundColor: "#492C2C",
+    borderRadius: 13,
+  },
   input: {
     flex: 1,
     color: COLORS.text,
@@ -583,6 +979,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.teal,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sendButtonDisabled: {
+    opacity: 0.65,
   },
   recordingLabel: {
     color: "#FF8A80",
